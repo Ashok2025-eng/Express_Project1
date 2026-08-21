@@ -1,8 +1,10 @@
 import { Request, Response } from "express";
+import ENV_CONFIG from "../config/env.config";
 import User from "../models/user.model";
 import AppError from "../utils/appError.utils";
 import { comparePassword, hashPassword } from "../utils/bcrypt.utils";
 import { catchAsync } from "../utils/catchAsync.utils";
+import generateJwtToken from "../utils/jwt.utils";
 import sendResponse from "../utils/sendResponse.utils";
 
 //* register
@@ -65,13 +67,34 @@ export const login = catchAsync(async (req: Request, res: Response) => {
 
   //todo: create jwt access_token
 
+  const access_token = generateJwtToken({
+    _id: user._id,
+    email: user.email,
+    role: user.role,
+  });
+
+  //* Set cookies
+
+  res.cookie("access_token", access_token, {
+    secure: ENV_CONFIG.NODE_ENV === "development" ? false : true,
+    httpOnly: ENV_CONFIG.NODE_ENV === "development" ? false : true,
+    expires: new Date(
+      Date.now() + ENV_CONFIG.COOKIE_EXPIRES_IN * 24 * 60 * 60 * 1000,
+    ),
+
+    sameSite: ENV_CONFIG.NODE_ENV === "development" ? "lax" : "none",
+  });
+
   //* convert user document to object & destructure
   const { password: _, ...rest } = user.toObject() as any;
 
   //* send success response
   sendResponse(res, {
     message: "login success",
-    data: rest,
+    data: {
+      user: rest,
+      access_token,
+    },
     statusCode: 201,
   });
 });
