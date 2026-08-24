@@ -2,7 +2,10 @@ import express, { NextFunction, Request, Response } from "express";
 import errorHandler from "./middlewares/errorHandler.middleware";
 
 //* importing routes
-import authRoutes from "./routes/auth.routes";
+// import authRoutes from "./routes/auth.routes";   /// replaced in index.ts file under routes as atlernative
+// import categoryRoutes from"./routes/category.routes"
+
+import routes from "./routes";
 
 //! @types/<pkg_name>
 // npm i --save-dev <pkg_name>
@@ -25,7 +28,8 @@ app.get("/", (_: Request, res: Response) => {
 });
 
 //* using routes
-app.use("/api/v1/auth", authRoutes);
+// app.use("/api/v1/auth",authRoutes) transported to index.ts under routes
+app.use("/api/v1", routes); 
 
 //* path not found
 app.use((req: Request, _: Response, next: NextFunction) => {

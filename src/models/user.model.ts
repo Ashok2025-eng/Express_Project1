@@ -1,6 +1,5 @@
 import mongoose, { Document } from "mongoose";
-import { Role } from "../types/enu.types";
-
+import { Role } from "../types/enum.types";
 
 interface IUser extends Document {
   full_name: string;
