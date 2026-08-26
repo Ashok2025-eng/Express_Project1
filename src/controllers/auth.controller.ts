@@ -4,6 +4,7 @@ import User from "../models/user.model";
 import AppError from "../utils/appError.utils";
 import { comparePassword, hashPassword } from "../utils/bcrypt.utils";
 import { catchAsync } from "../utils/catchAsync.utils";
+import { uploadFileToCloudinary } from "../utils/cloudinary.utils";
 import generateJwtToken from "../utils/jwt.utils";
 import sendResponse from "../utils/sendResponse.utils";
 
@@ -11,6 +12,7 @@ import sendResponse from "../utils/sendResponse.utils";
 export const register = catchAsync(async (req: Request, res: Response) => {
   // data:full_name, email , password , phone
   const { full_name, email, password, phone } = req.body;
+  const file = req.file;
 
   if (!full_name) {
     throw new AppError("full_name is required", 400);
@@ -30,6 +32,18 @@ export const register = catchAsync(async (req: Request, res: Response) => {
   user.password = hash;
 
   //todo: upload profile image
+  if (file) {
+    //* upload file to cloudinary
+    const { path, public_id } = await uploadFileToCloudinary(
+      file,
+      "/profile_images",
+    );
+
+    user.profile_image = {
+      path,
+      public_id,
+    };
+  }
 
   //* save user
   await user.save();

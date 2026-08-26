@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+import mongoose, { Document } from "mongoose";
 
 //* interface
 
@@ -6,6 +6,7 @@ interface IBrandDocument extends Document {
   name: string;
   description: string;
   logo: string;
+  logoPublicId: string;
 }
 //* Schema
 
@@ -26,6 +27,10 @@ const brandSchema = new mongoose.Schema(
     logo: {
       type: String,
       required: [true, "logo is required"],
+    },
+    logoPublicId: {
+      type: String,
+      required: [true, "Image public ID is required"],
     },
   },
   { timestamps: true },

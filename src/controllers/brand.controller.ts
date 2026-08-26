@@ -1,10 +1,13 @@
 import { Request, Response } from "express";
+import { uploadFileToCloudinary } from "./../utils/cloudinary.utils";
 
 // import express from "express";
 import AppError from "../utils/appError.utils";
 
+import fs from "fs";
 import Brand from "../models/brand.model";
 import catchAsync from "../utils/catchAsync.utils";
+import { deleteFileFromCloudinary } from "../utils/cloudinary.utils";
 import sendResponse from "../utils/sendResponse.utils";
 
 export const getAll = catchAsync(async (req: Request, res: Response) => {
@@ -43,16 +46,55 @@ export const create = catchAsync(async (req: Request, res: Response) => {
 
   // 1. Fixed 'new' syntax, changed variable name to brand, and changed dot to comma
   const brand = new Brand({ name, description });
+  const file = req.file;
+  if (!file) {
+    throw new AppError("Brand logo is required", 400);
+  }
 
-  // 2. Safely saves to the database unit
-  await brand.save();
+  const existingBrand = await Brand.findOne({ name });
+  if (existingBrand) {
+    if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+    throw new AppError(`Brand:${name} already exists`, 400);
+  }
 
-  // 3. Variables now align correctly
-  sendResponse(res, {
-    message: `brand:${brand.name} created`,
-    statusCode: 201,
-    data: brand,
-  });
+  let logoPublicId: string | null = null;
+  let brandImageUrl: string | null = null;
+
+  try {
+    const result = await uploadFileToCloudinary(file, "/brands");
+    brandImageUrl = result.path;
+    logoPublicId = result.public_id;
+
+    fs.unlink(file.path, (err) => {
+      if (err) console.log("Temporary server file delation failed", err);
+    });
+
+    const brand = new Brand({
+      name,
+      description,
+      logo: brandImageUrl,
+      logoPublicId: logoPublicId,
+    });
+
+    // brand.logo = file.path;
+    // 2. Safely saves to the database unit
+    await brand.save();
+
+    // 3. Variables now align correctly
+    sendResponse(res, {
+      message: `brand:${brand.name} created`,
+      statusCode: 201,
+      data: brand,
+    });
+  } catch (error) {
+    if (logoPublicId) {
+      await deleteFileFromCloudinary(logoPublicId);
+    }
+    if (file && fs.existsSync(file.path)) {
+      fs.unlinkSync(file.path);
+    }
+    throw error;
+  }
 });
 
 //* update
@@ -60,21 +102,55 @@ export const create = catchAsync(async (req: Request, res: Response) => {
 export const update = catchAsync(async (req, res) => {
   const { id } = req.params;
   const { name, description } = req.body;
+  const file = req.file;
 
-  const brand = await Brand.findByIdAndUpdate(
-    id,
-    { name, description },
-    { new: true, runValidators: true },
-  );
-
-  if (!brand) {
-    throw new AppError("Brand not found", 404);
+  const existingBrand = await Brand.findById(id);
+  if (!existingBrand) {
+    throw new AppError("Brand not found", 400);
   }
-  sendResponse(res, {
-    message: `Brand updated successfully`,
-    statusCode: 200,
-    data: brand,
-  });
+
+  const updateData: any = { name, description };
+
+  const oldPublicId = existingBrand.logoPublicId;
+  let newCloudinaryPublicId: string | null = null;
+
+  try {
+    // 3. Only step into Cloudinary processing IF a file actually exists in the request
+    if (file) {
+      // Upload new file using your utility (this handles deleting the local file on success)
+      const result = await uploadFileToCloudinary(file, "/brands");
+      // Inject cloud values into our database payload object
+      updateData.logo = result.path;
+      updateData.logoPublicId = result.public_id;
+      newCloudinaryPublicId = result.public_id;
+    }
+    const brand = await Brand.findByIdAndUpdate(id, updateData, {
+      new: true,
+      runValidators: true,
+    });
+    // 5. SUCCESS CLEANUP: Wipe the old image off Cloudinary so your storage doesn't inflate
+    if (file && oldPublicId) {
+      await deleteFileFromCloudinary(oldPublicId);
+    }
+
+    sendResponse(res, {
+      message: `Brand updated successfully`,
+      statusCode: 200,
+      data: brand,
+    });
+  } catch (error) {
+    // 6. FAIL-SAFE: If DB validation/saving crashes, remove the newly uploaded cloud image
+    if (newCloudinaryPublicId) {
+      await deleteFileFromCloudinary(newCloudinaryPublicId);
+    }
+
+    // Emergency cleanup for local files
+    if (file && fs.existsSync(file.path)) {
+      fs.unlinkSync(file.path);
+    }
+
+    throw error;
+  }
 });
 
 //* delete

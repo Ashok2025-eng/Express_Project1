@@ -1,23 +1,40 @@
-
 import express from "express";
-import { create, getAll, getById, update } from "../controllers/brand.controller";
+import {
+  create,
+  getAll,
+  getById,
+  remove,
+  update,
+} from "../controllers/brand.controller";
+import multerFileUploader from "../middlewares/multer.middleware";
 import { validate } from "../middlewares/validator.middleware";
-import { createBrandValidator, deleteBrandValidator, getBrandByIdValidator, updateBrandValidator } from "../validators/brand.validator";
-import { remove } from "../controllers/brand.controller";
+import {
+  deleteBrandValidator,
+  getBrandByIdValidator,
+  updateBrandValidator,
+} from "../validators/brand.validator";
 
-const router =express.Router()
+const router = express.Router();
+const upload = multerFileUploader();
 
+router.get("/", getAll);
 
-router.get("/",getAll)
+router.get("/:id", validate(getBrandByIdValidator), getById);
 
+router.post(
+  "/",
+  upload.single("logo"),
+  //  validate(createBrandValidator),
+  create,
+);
 
-router.get("/:id",validate(getBrandByIdValidator),getById)
+router.put(
+  "/:id",
+  upload.single("logo"),
+  validate(updateBrandValidator),
+  update,
+);
 
-router.post("/",validate(createBrandValidator),create)
-
-router.put("/:id",validate(updateBrandValidator),update)
-
-router.delete("/:id",validate(deleteBrandValidator),remove)
-
+router.delete("/:id", validate(deleteBrandValidator), remove);
 
 export default router;
