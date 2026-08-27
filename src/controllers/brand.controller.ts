@@ -45,7 +45,7 @@ export const create = catchAsync(async (req: Request, res: Response) => {
   const { name, description } = req.body;
 
   // 1. Fixed 'new' syntax, changed variable name to brand, and changed dot to comma
-  const brand = new Brand({ name, description });
+
   const file = req.file;
   if (!file) {
     throw new AppError("Brand logo is required", 400);
@@ -157,15 +157,24 @@ export const update = catchAsync(async (req, res) => {
 export const remove = catchAsync(async (req, res) => {
   const { id } = req.params;
 
-  const brand = await Brand.findByIdAndDelete(id);
+  // 1. Fetch the brand document first to grab the stored logo tracking details
+  const brand = await Brand.findById(id);
 
   if (!brand) {
     throw new AppError("Brand not found", 404);
   }
 
-  //send a clean response back to client
+  // 2. Clear out your Cloudinary dashboard folder using the stored logoPublicId
+  if (brand.logoPublicId) {
+    await deleteFileFromCloudinary(brand.logoPublicId);
+  }
+
+  // 3. Drop the record out of MongoDB completely now that asset cleanup is finished
+  await brand.deleteOne();
+
+  // 4. Send a clean response back to client
   sendResponse(res, {
-    message: `Brand:${brand.id} deleted successfully`,
+    message: `Brand:${brand.name} and its cloud logo deleted successfully`,
     statusCode: 200,
     data: null,
   });

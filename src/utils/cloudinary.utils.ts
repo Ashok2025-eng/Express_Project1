@@ -42,7 +42,7 @@ export const deleteFileFromCloudinary = async (publicId: string) => {
     const response = await cloudinary.uploader.destroy(publicId);
     return response;
   } catch (error) {
-    console.log("Cloudinary deletion failed:", error);
+    console.log("Cloudinary deletion failed:", error, 400);
     // Return null instead of throwing so a failed media deletion doesn't crash your server response
     return null;
   }

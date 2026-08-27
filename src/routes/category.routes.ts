@@ -13,6 +13,7 @@ import {
   getCategoryByIdValidator,
   updateCategoryValidator,
 } from "../validators/category.validator";
+import { createCategoryValidator } from "../validators/category.validator";
 
 const upload = multerFileUploader();
 
@@ -28,7 +29,7 @@ router.get("/:id", validate(getCategoryByIdValidator), getById);
 router.post(
   "/",
   upload.single("image"),
-  // validate(createCategoryValidator),
+  validate(createCategoryValidator),
   create,
 );
 

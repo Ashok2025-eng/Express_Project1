@@ -165,16 +165,24 @@ export const update = catchAsync(async (req: Request, res: Response) => {
 export const remove = catchAsync(async (req, res) => {
   const { id } = req.params;
 
-  //find category in mongodb and delete it
-  const category = await Category.findByIdAndDelete(id);
+  // 1. Fetch the category document first to grab the stored cloud asset tracking credentials
+  const category = await Category.findById(id);
 
   if (!category) {
     throw new AppError("Category not found", 404);
   }
 
-  //send a clean response back to client
+  // 2. Clear out your Cloudinary dashboard folder using the stored publicId string token
+  if (category.imagePublicId) {
+    await deleteFileFromCloudinary(category.imagePublicId);
+  }
+
+  // 3. Drop the record out of MongoDB completely now that asset cleanup is finished
+  await category.deleteOne();
+
+  // 4. Send a clean response back to client
   sendResponse(res, {
-    message: `Category:${category.id} deleted successfully`,
+    message: `Category:${category.name} and its cloud assets deleted successfully`, // Using category.name is friendlier than id!
     statusCode: 200,
     data: null,
   });

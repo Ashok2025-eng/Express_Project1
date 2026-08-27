@@ -9,6 +9,7 @@ import {
 import multerFileUploader from "../middlewares/multer.middleware";
 import { validate } from "../middlewares/validator.middleware";
 import {
+  createBrandValidator,
   deleteBrandValidator,
   getBrandByIdValidator,
   updateBrandValidator,
@@ -21,12 +22,7 @@ router.get("/", getAll);
 
 router.get("/:id", validate(getBrandByIdValidator), getById);
 
-router.post(
-  "/",
-  upload.single("logo"),
-  //  validate(createBrandValidator),
-  create,
-);
+router.post("/", upload.single("logo"), validate(createBrandValidator), create);
 
 router.put(
   "/:id",
