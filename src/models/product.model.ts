@@ -15,12 +15,10 @@ interface IProductDocument extends Document {
   new_arrival?: boolean;
 }
 
-//* Schema
-
 const productSchema = new mongoose.Schema<IProductDocument>(
   {
     name: {
-      types: String,
+      type: String, // ✅ Fixed 'types' to 'type'
       required: [true, "name is required"],
     },
     description: {
@@ -29,23 +27,21 @@ const productSchema = new mongoose.Schema<IProductDocument>(
       minLength: [10, "at least 10 characters required"],
     },
     price: {
-      types: Number,
+      type: Number, // ✅ Fixed 'types' to 'type'
       required: [true, "price is required"],
       min: 1,
     },
     stock: {
-      types: {
-        types: Number,
-        required: [true, "stock is required"],
-      },
-      is_featured: {
-        type: Boolean,
-        default: true,
-      },
-      new_arrival: {
-        type: Boolean,
-        default: true,
-      },
+      type: Number, // ✅ Fixed nested structural layout
+      required: [true, "stock is required"],
+    },
+    is_featured: {
+      type: Boolean,
+      default: true,
+    },
+    new_arrival: {
+      type: Boolean,
+      default: true,
     },
     cover_image: {
       type: imageSchema,
@@ -62,7 +58,7 @@ const productSchema = new mongoose.Schema<IProductDocument>(
     },
     brand: {
       type: mongoose.Schema.Types.ObjectId,
-      required: [true, "category is required"],
+      required: [true, "brand is required"], // ✅ Fixed error message typo
       ref: "Brand",
     },
   },

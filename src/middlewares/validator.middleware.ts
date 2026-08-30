@@ -18,7 +18,7 @@ export const validate = (schema: ZodObject) => {
         };
       });
 
-      next(new AppError(errors[0]?.message || "Validation Error",400, errors));
+      next(new AppError(errors[0]?.message || "Validation Error", 400, errors));
       return;
     }
 
