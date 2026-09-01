@@ -1,6 +1,6 @@
+import cookieParser from "cookie-parser";
 import express, { NextFunction, Request, Response } from "express";
 import errorHandler from "./middlewares/errorHandler.middleware";
-
 //* importing routes
 // import authRoutes from "./routes/auth.routes";   /// replaced in index.ts file under routes as atlernative
 // import categoryRoutes from"./routes/category.routes"
@@ -15,6 +15,7 @@ import routes from "./routes";
 const app = express();
 
 //* using middlewares
+app.use(cookieParser());
 app.use(express.json({ limit: "10mb" }));
 
 app.use("/api/v1/uploads", express.static("uploads"));

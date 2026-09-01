@@ -5,7 +5,7 @@ import AppError from "../utils/appError.utils";
 import { comparePassword, hashPassword } from "../utils/bcrypt.utils";
 import { catchAsync } from "../utils/catchAsync.utils";
 import { uploadFileToCloudinary } from "../utils/cloudinary.utils";
-import generateJwtToken from "../utils/jwt.utils";
+import { generateJwtToken } from "../utils/jwt.utils";
 import sendResponse from "../utils/sendResponse.utils";
 
 //* register

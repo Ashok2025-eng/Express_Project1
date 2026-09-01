@@ -17,8 +17,8 @@ import sendResponse from "../utils/sendResponse.utils";
  */
 export const toggleWishlist = catchAsync(
   async (req: Request, res: Response) => {
-    const { user, product } = req.body;
-    const userId = user;
+    const { product } = req.body;
+    const userId = req.user?.id;
 
     if (!userId) throw new AppError("User ID is required", 400);
 

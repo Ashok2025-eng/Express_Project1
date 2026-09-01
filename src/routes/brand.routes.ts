@@ -6,8 +6,10 @@ import {
   remove,
   update,
 } from "../controllers/brand.controller";
+import { protect } from "../middlewares/auth.middleware"; // 🔐 Imported your reusable auth gate
 import multerFileUploader from "../middlewares/multer.middleware";
 import { validate } from "../middlewares/validator.middleware";
+import { Role } from "../types/enum.types"; // 🔐 Imported your Role enum
 import {
   createBrandValidator,
   deleteBrandValidator,
@@ -18,19 +20,33 @@ import {
 const router = express.Router();
 const upload = multerFileUploader();
 
+//* Public Read Routes
 router.get("/", getAll);
 
 router.get("/:id", validate(getBrandByIdValidator), getById);
 
-router.post("/", upload.single("logo"), validate(createBrandValidator), create);
+//* Admin Write Routes (Protected with Role-Based Authentication)
+router.post(
+  "/",
+  protect([Role.ADMIN]), // 🛡️ Restricts creation to Admins only
+  upload.single("logo"),
+  validate(createBrandValidator),
+  create,
+);
 
 router.put(
   "/:id",
+  protect([Role.ADMIN]), // 🛡️ Restricts modification to Admins only
   upload.single("logo"),
   validate(updateBrandValidator),
   update,
 );
 
-router.delete("/:id", validate(deleteBrandValidator), remove);
+router.delete(
+  "/:id", 
+  protect([Role.ADMIN]), // 🛡️ Restricts deletion to Admins only
+  validate(deleteBrandValidator), 
+  remove
+);
 
 export default router;

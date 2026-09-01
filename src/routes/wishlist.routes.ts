@@ -1,16 +1,25 @@
 import express from "express";
-import { toggleWishlist, getUserWishlist, clearWishlist } from "../controllers/wishlist.controller";
+import {
+  clearWishlist,
+  getUserWishlist,
+  toggleWishlist,
+} from "../controllers/wishlist.controller";
+import { protect } from "../middlewares/auth.middleware";
 import { validate } from "../middlewares/validator.middleware";
-import { 
-  toggleWishlistValidator, 
-  getWishlistValidator, 
-  clearWishlistValidator 
+import {
+  clearWishlistValidator,
+  getWishlistValidator,
+  toggleWishlistValidator,
 } from "../validators/wishlist.validator";
 
 const router = express.Router();
 
-router.post("/", validate(toggleWishlistValidator), toggleWishlist);
+router.post("/", protect, validate(toggleWishlistValidator), toggleWishlist);
 router.get("/:userId", validate(getWishlistValidator), getUserWishlist);
-router.delete("/clear/:userId", validate(clearWishlistValidator), clearWishlist);
+router.delete(
+  "/clear/:userId",
+  validate(clearWishlistValidator),
+  clearWishlist,
+);
 
 export default router;

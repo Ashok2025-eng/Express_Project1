@@ -6,8 +6,10 @@ import {
   remove,
   update,
 } from "../controllers/product.controller";
+import { protect } from "../middlewares/auth.middleware"; // 🔐 Your reusable auth gate
 import multerFileUploader from "../middlewares/multer.middleware";
 import { validate } from "../middlewares/validator.middleware";
+import { Role } from "../types/enum.types"; // 🔐 Your Role enum
 import {
   createProductValidator,
   deleteProductValidator,
@@ -16,35 +18,43 @@ import {
 } from "../validators/product.validator";
 
 const router = express.Router();
-const upload = multerFileUploader(); // Execute the instance function
+const upload = multerFileUploader();
 
-//* 1. Read Operations (No Multer Needed)
+/**
+ * 📁 Multer Multi-Field Interceptor Configuration:
+ * Maps incoming file fields to your controller arrays
+ */
+const productMediaFields = upload.fields([
+  { name: "cover_image", maxCount: 1 }, // Single file structure
+  { name: "images", maxCount: 5 }, // Array collection structure
+]);
+
+//* Public Read Routes
 router.get("/", getAll);
 router.get("/:id", validate(getProductByIdValidator), getById);
 
-//* 2. Create Operation (Multer parses fields/files first, then Zod validates)
+//* Admin Write Routes (Protected by Role Gate Matrix)
 router.post(
   "/",
-  upload.fields([
-    { name: "cover_image", maxCount: 1 }, // Expects exactly 1 file under the key 'cover_image'
-    { name: "images", maxCount: 8 }, // Expects up to 8 files under the key 'images'
-  ]),
+  protect([Role.ADMIN]), // 🛡️ Shielded entry gate
+  productMediaFields,
   validate(createProductValidator),
   create,
 );
 
-//* 3. Update Operation
 router.put(
   "/:id",
-  upload.fields([
-    { name: "cover_image", maxCount: 1 },
-    { name: "images", maxCount: 8 },
-  ]),
+  protect([Role.ADMIN]), // 🛡️ Shielded entry gate
+  productMediaFields,
   validate(updateProductValidator),
   update,
 );
 
-//* 4. Delete Operation (No Multer Needed)
-router.delete("/:id", validate(deleteProductValidator), remove);
+router.delete(
+  "/:id",
+  protect([Role.ADMIN]), // 🛡️ Shielded entry gate
+  validate(deleteProductValidator),
+  remove, // Safe to leave active now that the function exists in your controller!
+);
 
 export default router;
