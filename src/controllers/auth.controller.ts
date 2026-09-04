@@ -143,6 +143,38 @@ export const changePassword = catchAsync(
   },
 );
 
+//* LOGOUT TODO
+//* logout
+export const logout = catchAsync(async (req, res) => {
+  res.clearCookie("access_token", {
+    secure: ENV_CONFIG.NODE_ENV === "development" ? false : true,
+    httpOnly: ENV_CONFIG.NODE_ENV === "development" ? false : true,
+    maxAge: 0,
+    sameSite: ENV_CONFIG.NODE_ENV === "development" ? "lax" : "none",
+  });
+
+  sendResponse(res, {
+    message: "logout success",
+    data: null,
+    statusCode: 200,
+  });
+});
+
+//* get profile
+export const getProfile = catchAsync(async (req, res) => {
+  const { _id } = req.user;
+
+  const profile = await User.findOne({ _id });
+
+  if (!profile) throw new AppError("profile not found", 404);
+
+  sendResponse(res, {
+    message: "profile fetched",
+    data: profile,
+    statusCode: 200,
+  });
+});
+
 //* forgot password
 
 //* change email

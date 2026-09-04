@@ -135,7 +135,9 @@ export const getUserWishlist = catchAsync(
     const userId = req.params.userId as string;
 
     // TypeScript safely accepts the query parameter configuration maps now
-    const wishlist = await Wishlist.find({ user: userId }).populate({
+
+    //[{user:{_id:1,full_name:""}}]
+    const wishlist = await Wishlist.find({ user: userId }).populate({ //brings product detail from models (.pop;ulate)
       path: "product",
       select: "name price cover_image stock",
     });
@@ -154,7 +156,7 @@ export const getUserWishlist = catchAsync(
  */
 export const clearWishlist = catchAsync(async (req: Request, res: Response) => {
   // ✅ FIX: Force type cast userId as a strict single string
-  const userId = req.params.userId as string;
+  const userId = req.user._id;
 
   // TypeScript will now accept this database query filter safely
   await Wishlist.deleteMany({ user: userId });

@@ -1,22 +1,21 @@
 import { NextFunction, Request, Response } from "express";
+import { Role } from "../types/enum.types";
 import AppError from "../utils/appError.utils";
 import { verifyToken } from "../utils/jwt.utils"; // 1. Import your fixed token helper
-import { IJwtReturn } from "./../utils/jwt.utils";
-import { Role } from "../types/enum.types";
-
-
-
-
 
 /**
  * Combined Gatekeeper: Handles token validation AND role checking at the same time
  */
 export const protect = (allowedRoles: Role[] = []) => {
-  // 2. Expect an array of Role enums
   return (req: Request, res: Response, next: NextFunction) => {
     let token: string | undefined;
 
-    if (
+    // 1. First, try to grab token from the cookies (Matches your login setup)
+    if (req.cookies && req.cookies.access_token) {
+      token = req.cookies.access_token;
+    }
+    // 2. Fallback: try to grab from the Authorization header if cookie isn't there
+    else if (
       req.headers.authorization &&
       req.headers.authorization.startsWith("Bearer")
     ) {

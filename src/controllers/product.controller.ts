@@ -176,19 +176,19 @@ export const update = catchAsync(async (req: Request, res: Response) => {
     brand,
     is_featured,
     new_arrival,
+    deleted_images, // 👈 Received from client
   } = req.body;
 
   // 1. Cast incoming files from upload.fields()
   const files = req.files as
     | { [fieldname: string]: Express.Multer.File[] }
     | undefined;
-  const newCoverFile = files?.["cover_image"]?.[0]; // Get potential new single cover file
-  const newGalleryFiles = files?.["images"]; // Get potential new gallery files array
+  const newCoverFile = files?.["cover_image"]?.[0];
+  const newGalleryFiles = files?.["images"];
 
   // 2. Fetch existing product to verify existence and grab old image IDs
   const existingProduct = await Product.findById(id);
   if (!existingProduct) {
-    // Safety cleanup of any newly uploaded local temp files if product doesn't exist
     if (newCoverFile && fs.existsSync(newCoverFile.path))
       fs.unlinkSync(newCoverFile.path);
     if (newGalleryFiles)
@@ -196,6 +196,19 @@ export const update = catchAsync(async (req: Request, res: Response) => {
         if (fs.existsSync(f.path)) fs.unlinkSync(f.path);
       });
     throw new AppError("Product not found", 404);
+  }
+
+  // Parse deleted_images since FormData sends arrays as strings
+  let parsedDeletedImages: string[] = [];
+  if (deleted_images) {
+    try {
+      parsedDeletedImages =
+        typeof deleted_images === "string"
+          ? JSON.parse(deleted_images)
+          : deleted_images;
+    } catch (e) {
+      parsedDeletedImages = [];
+    }
   }
 
   // 3. Build basic update payload object with incoming text inputs
@@ -216,7 +229,14 @@ export const update = catchAsync(async (req: Request, res: Response) => {
 
   // Track old asset tracking keys for success cleanup execution phases
   const oldCoverPublicId = existingProduct.cover_image?.public_id;
-  const oldGalleryImages = existingProduct.images || [];
+
+  // 👈 YOUR WAY: Keep images that are NOT marked for deletion
+  let remainingGalleryImages = existingProduct.images || [];
+  if (parsedDeletedImages.length > 0) {
+    remainingGalleryImages = remainingGalleryImages.filter(
+      (img) => !parsedDeletedImages.includes(img.public_id),
+    );
+  }
 
   // Track newly uploaded cloud assets for crash-rollback fail-safes
   let newUploadedCover: { path: string; public_id: string } | null = null;
@@ -230,17 +250,22 @@ export const update = catchAsync(async (req: Request, res: Response) => {
         "/products/covers",
       );
       updateData.cover_image = coverResult;
-      newUploadedCover = coverResult; // Bookmark for crash protection
+      newUploadedCover = coverResult;
     }
 
-    // 5. Handle Gallery Array Swap
+    // 5. Handle Gallery Array Logic (Merge Remaining + New)
     if (newGalleryFiles && newGalleryFiles.length > 0) {
       const galleryResult = await uploadMultipleFilesToCloudinary(
         newGalleryFiles,
         "/products/gallery",
       );
-      updateData.images = galleryResult;
-      newUploadedGallery = galleryResult; // Bookmark for crash protection
+      newUploadedGallery = galleryResult;
+
+      // 👈 YOUR WAY: Mix the preserved old images with your brand new uploads
+      updateData.images = [...remainingGalleryImages, ...galleryResult];
+    } else {
+      // If no new images uploaded, but some were deleted, update the array with remaining ones
+      updateData.images = remainingGalleryImages;
     }
 
     // 6. Commit all accumulated updates directly to MongoDB
@@ -250,19 +275,14 @@ export const update = catchAsync(async (req: Request, res: Response) => {
     });
 
     // 7. SUCCESS CLEANUP: Purge old files off your Cloudinary drive permanently
-    // Only run this if a new cover file was uploaded successfully
     if (newCoverFile && oldCoverPublicId) {
       await deleteFileFromCloudinary(oldCoverPublicId);
     }
 
-    // ✅ SYNTAX FIX: Successfully completed the broken loops and closed out catch block wrappers cleanly
-    if (
-      newGalleryFiles &&
-      newGalleryFiles.length > 0 &&
-      oldGalleryImages.length > 0
-    ) {
-      for (const img of oldGalleryImages) {
-        if (img.public_id) await deleteFileFromCloudinary(img.public_id);
+    // 👈 YOUR WAY: Only delete the specific images the user explicitly requested to remove
+    if (parsedDeletedImages.length > 0) {
+      for (const public_id of parsedDeletedImages) {
+        if (public_id) await deleteFileFromCloudinary(public_id);
       }
     }
 
@@ -272,6 +292,7 @@ export const update = catchAsync(async (req: Request, res: Response) => {
       data: updatedProduct,
     });
   } catch (error) {
+    // Rollback changes on Cloudinary if database update crashes
     if (newUploadedCover?.public_id)
       await deleteFileFromCloudinary(newUploadedCover.public_id);
     if (newUploadedGallery.length > 0) {
@@ -322,3 +343,37 @@ export const remove = catchAsync(async (req: Request, res: Response) => {
     data: null,
   });
 });
+
+// for deleted images
+
+// if(deleted_images && Array.isArray(deleted_images) &&deleted_images.length>0
+// ){
+// //delete image from cloudinary
+// await Promise.allSettled(
+// deleted_images.map((public_id)=>deleteFileFromCloudinary(public_id)),
+// )
+// const oldImages = product.images.filter(
+// (img)=> !deleted_images.includes(img.public_id),
+// )
+
+// product.images = oldImages;
+// }
+
+// if(images && images.length>0){'
+// const files = (
+// await Promise.allSettled((img) =>uploadFiletoCloudinary(img,folder))
+// ))
+
+// .filter((f))=>file.status==="fulfilled"
+// .map((file)=)
+// // images.map((img
+
+// await.product.save()
+
+// sendResponse(res,(
+// message: product update,
+// data:product,
+// statusCODE:200
+
+// })
+// })
