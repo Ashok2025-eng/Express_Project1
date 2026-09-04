@@ -5,9 +5,13 @@ import AppError from "../utils/appError.utils";
 import { comparePassword, hashPassword } from "../utils/bcrypt.utils";
 import { catchAsync } from "../utils/catchAsync.utils";
 import { uploadFileToCloudinary } from "../utils/cloudinary.utils";
+import {
+  generateAccountCreatedHtml,
+  generateLoginDetectedHtml,
+} from "../utils/emailTemplate.utils";
 import { generateJwtToken } from "../utils/jwt.utils";
+import { sendEmail } from "../utils/sendEmail.utils";
 import sendResponse from "../utils/sendResponse.utils";
-
 //* register
 export const register = catchAsync(async (req: Request, res: Response) => {
   // data:full_name, email , password , phone
@@ -47,6 +51,12 @@ export const register = catchAsync(async (req: Request, res: Response) => {
 
   //* save user
   await user.save();
+  //* Send email
+  await sendEmail({
+    to: user.email,
+    subject: "Account Created",
+    html: generateAccountCreatedHtml(),
+  });
 
   //* convert user document to object & destructure
   const { password: _, ...rest } = user.toObject() as any;
@@ -101,6 +111,24 @@ export const login = catchAsync(async (req: Request, res: Response) => {
 
   //* convert user document to object & destructure
   const { password: _, ...rest } = user.toObject() as any;
+
+  //* send email
+  sendEmail({
+    to: user.email,
+    subject: "New Login Detected",
+    html: generateLoginDetectedHtml(),
+  });
+
+  //* set cookie header
+  res.cookie("access_token", access_token, {
+    secure: ENV_CONFIG.NODE_ENV === "development" ? false : true,
+    httpOnly: ENV_CONFIG.NODE_ENV === "development" ? false : true,
+    // expires: new Date(
+    //   Date.now() + ENV_CONFIG.COOKIE_EXPIRES_IN * 24 * 60 * 60 * 1000,
+    // ),
+    maxAge: ENV_CONFIG.COOKIE_EXPIRES_IN * 24 * 60 * 60 * 1000,
+    sameSite: ENV_CONFIG.NODE_ENV === "development" ? "lax" : "none",
+  });
 
   //* send success response
   sendResponse(res, {
