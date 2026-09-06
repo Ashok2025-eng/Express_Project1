@@ -1,24 +1,51 @@
 import { Request, Response } from "express";
-import { uploadFileToCloudinary } from "./../utils/cloudinary.utils";
-
-// import express from "express";
 import AppError from "../utils/appError.utils";
+import { uploadFileToCloudinary } from "./../utils/cloudinary.utils";
 
 import fs from "fs";
 import Brand from "../models/brand.model";
 import catchAsync from "../utils/catchAsync.utils";
 import { deleteFileFromCloudinary } from "../utils/cloudinary.utils";
+import { getPagination } from "../utils/pagination.utils";
 import sendResponse from "../utils/sendResponse.utils";
 
-export const getAll = catchAsync(async (req: Request, res: Response) => {
-  const filter = {};
+const folder = "/brands";
 
-  const brands = await Brand.find(filter);
+export const getAll = catchAsync(async (req: Request, res: Response) => {
+  const filter: any = {};
+  const { query, page = 1, limit = 10 } = req.query;
+  const currentPage = Number(page);
+  const perPage = Number(limit);
+  const skip = (currentPage - 1) * perPage;
+  if (query) {
+    filter.$or = [
+      {
+        name: {
+          $regex: query,
+          $options: "i",
+        },
+      },
+      {
+        description: {
+          $regex: query,
+          $options: "i",
+        },
+      },
+    ];
+  }
+
+  //* date range
+
+  const brands = await Brand.find(filter).limit(perPage).skip(skip);
+  const totalCount = await Brand.countDocuments(filter);
 
   //* send success response
   sendResponse(res, {
     message: "Brands fetched",
-    data: brands,
+    data: {
+      brands,
+      pagination: getPagination(currentPage, perPage, totalCount),
+    },
     statusCode: 200,
   });
 });

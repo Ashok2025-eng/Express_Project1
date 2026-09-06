@@ -7,18 +7,46 @@ import {
   deleteFileFromCloudinary,
   uploadFileToCloudinary,
 } from "../utils/cloudinary.utils";
+import { getPagination } from "../utils/pagination.utils";
 import sendResponse from "../utils/sendResponse.utils";
 
 export const getAll = catchAsync(async (req: Request, res: Response) => {
-  const filter = {};
+  const filter: any = {};
+  const { query, page = 1, limit = 10 } = req.query;
+  const currentPage = Number(page);
+  const perPage = Number(limit);
+  const skip = (currentPage - 1) * perPage;
+  if (query) {
+    // filter.name = {
+    //   $regex:query,
+    //   $options:"i",
+    // };
+    filter.$or = [
+      {
+        name: {
+          $regex: query,
+          $options: "i",
+        },
+      },
+      {
+        description: {
+          $regex: query,
+          $options: "i",
+        },
+      },
+    ];
+  }
 
-  const categories = await Category.find(filter);
-
+  const categories = await Category.find(filter).limit(perPage).skip(skip);
+  const totalCount = await Category.countDocuments(filter);
   //* send success response
 
   sendResponse(res, {
     message: "Categories fetched",
-    data: categories,
+    data: {
+      categories,
+      pagination: getPagination(currentPage, perPage, totalCount),
+    },
     statusCode: 200,
   });
 });

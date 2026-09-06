@@ -9,13 +9,14 @@ export const getCategoryByIdValidator = z.object({
 });
 
 export const createCategoryValidator = z.object({
-  name: z.object({
-    name: z.string().min(3, "atleast 3 character required").trim,
+  body: z.object({
+    name: z.string().min(3, "atleast 3 character required").trim(), // Added () here
     description: z.string().min(10, "atleast 10 characters required"),
-  }),
+  }), // Removed the extra duplicate 'name' wrapper and replaced with 'body'
   params: z.object().default({}),
   query: z.object().default({}),
 });
+
 
 //* update
 

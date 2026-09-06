@@ -8,24 +8,105 @@ import {
   uploadFileToCloudinary,
   uploadMultipleFilesToCloudinary,
 } from "../utils/cloudinary.utils";
+import { getPagination } from "../utils/pagination.utils";
 import sendResponse from "../utils/sendResponse.utils";
 
 /**
  * @desc    Get all products with category and brand details populated
  * @route   GET /api/v1/products
  */
-export const getAll = catchAsync(async (req: Request, res: Response) => {
-  // 1. Fetch products from MongoDB and automatically substitute relational IDs
-  //    with their matching documents from the Category and Brand collections.
-  const products = await Product.find()
-    .populate("category", "name description") // Populates category field with only name and description
-    .populate("brand", "name logo"); // Populates brand field with only name and logo
+// export const getAll = catchAsync(async (req: Request, res: Response) => {
 
-  // 2. Return clean response back to client
+//   const filter:any = {}
+//   const{query,category} = req.query;
+//   // 1. Fetch products from MongoDB and automatically substitute relational IDs
+//   //    with their matching documents from the Category and Brand collections.
+//   const products = await Product.find()
+//     .populate("category", "name description") // Populates category field with only name and description
+//     .populate("brand", "name logo"); // Populates brand field with only name and logo
+
+//   // 2. Return clean response back to client
+//   sendResponse(res, {
+//     message: "Products fetched successfully",
+//     statusCode: 200,
+//     data: products,
+//   });
+// });
+
+//* get all
+export const getAll = catchAsync(async (req, res) => {
+  const filter: any = {};
+  const {
+    query,
+    category,
+    brand,
+    minPrice,
+    maxPrice,
+    page = 1,
+    limit = 10,
+  } = req.query;
+  const currentPage = Number(page);
+  const perPage = Number(limit);
+  const skip = (currentPage - 1) * perPage;
+
+  if (query) {
+    filter.$or = [
+      {
+        name: {
+          $regex: query,
+          $options: "i",
+        },
+      },
+      {
+        description: {
+          $regex: query,
+          $options: "i",
+        },
+      },
+    ];
+  }
+
+  if (category) {
+    filter.category = category;
+  }
+
+  if (brand) {
+    filter.brand = brand;
+  }
+
+  //* price range filter
+  if (minPrice || maxPrice) {
+    const floor = Number(minPrice);
+    const ceil = Number(maxPrice);
+
+    if (floor) {
+      filter.price = {
+        $gte: floor,
+      };
+    }
+    if (ceil) {
+      filter.price = {
+        $lte: ceil,
+      };
+    }
+
+    if (ceil && floor) {
+      filter.price = {
+        $lte: ceil,
+        $gte: floor,
+      };
+    }
+  }
+
+  const products = await Product.find(filter).limit(perPage).skip(skip);
+  const totalCount = await Product.countDocuments(filter);
   sendResponse(res, {
-    message: "Products fetched successfully",
+    message: "products fetched",
     statusCode: 200,
-    data: products,
+    data: {
+      products,
+      pagination: getPagination(currentPage, perPage, totalCount),
+    },
   });
 });
 

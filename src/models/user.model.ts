@@ -23,7 +23,7 @@ const userSchema = new mongoose.Schema<IUser>(
     },
     email: {
       type: String,
-      required: [true, "full_name is required"],
+      required: [true, "email is required"],
       unique: [true, "user already exists with provided email"],
     },
     password: {
@@ -40,14 +40,18 @@ const userSchema = new mongoose.Schema<IUser>(
       type: {
         path: {
           type: String,
-          required: true,
+          required: function () {
+            return this.profile_image?.public_id != null;
+          },
         },
         public_id: {
           type: String,
-          required: true,
+          required: function () {
+            return this.profile_image?.path != null;
+          },
         },
       },
-      default: null,
+      default: null, // Now Mongoose understands this applies to the whole object
     },
     phone: {
       type: String,

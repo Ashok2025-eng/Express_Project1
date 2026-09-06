@@ -4,7 +4,10 @@ import User from "../models/user.model";
 import AppError from "../utils/appError.utils";
 import { comparePassword, hashPassword } from "../utils/bcrypt.utils";
 import { catchAsync } from "../utils/catchAsync.utils";
-import { uploadFileToCloudinary } from "../utils/cloudinary.utils";
+import {
+  deleteFileFromCloudinary,
+  uploadFileToCloudinary,
+} from "../utils/cloudinary.utils";
 import {
   generateAccountCreatedHtml,
   generateLoginDetectedHtml,
@@ -12,6 +15,7 @@ import {
 import { generateJwtToken } from "../utils/jwt.utils";
 import { sendEmail } from "../utils/sendEmail.utils";
 import sendResponse from "../utils/sendResponse.utils";
+
 //* register
 export const register = catchAsync(async (req: Request, res: Response) => {
   // data:full_name, email , password , phone
@@ -35,14 +39,14 @@ export const register = catchAsync(async (req: Request, res: Response) => {
   const hash = await hashPassword(password);
   user.password = hash;
 
-  //todo: upload profile image
+  //* upload profile image
   if (file) {
     //* upload file to cloudinary
     const { path, public_id } = await uploadFileToCloudinary(
       file,
       "/profile_images",
     );
-
+    // user.profile_image = file.path;
     user.profile_image = {
       path,
       public_id,
@@ -51,15 +55,21 @@ export const register = catchAsync(async (req: Request, res: Response) => {
 
   //* save user
   await user.save();
-  //* Send email
+
+  //* send email
   await sendEmail({
     to: user.email,
     subject: "Account Created",
-    html: generateAccountCreatedHtml(),
+    html: generateAccountCreatedHtml({
+      full_name: user.full_name,
+      email: user.email,
+      created_at: new Date(Date.now()),
+      user_agent: req.headers["user-agent"],
+    }),
   });
 
   //* convert user document to object & destructure
-  const { password: _, ...rest } = user.toObject() as any;
+  const { password: _, ...rest } = user.toObject();
 
   //* send success response
   sendResponse(res, {
@@ -74,9 +84,6 @@ export const login = catchAsync(async (req: Request, res: Response) => {
   // email password
   const { email, password } = req.body;
 
-  // if (!email) throw new AppError("email is required", 400);
-  // if (!password) throw new AppError("password is required", 400);
-
   //* find user by email
   const user = await User.findOne({ email }).select("+password");
 
@@ -89,34 +96,26 @@ export const login = catchAsync(async (req: Request, res: Response) => {
   if (!isPasswordMatched)
     throw new AppError("credentials does not matched", 400);
 
-  //todo: create jwt access_token
-
+  //* create jwt access_token
   const access_token = generateJwtToken({
     _id: user._id,
     email: user.email,
     role: user.role,
   });
 
-  //* Set cookies
-
-  res.cookie("access_token", access_token, {
-    secure: ENV_CONFIG.NODE_ENV === "development" ? false : true,
-    httpOnly: ENV_CONFIG.NODE_ENV === "development" ? false : true,
-    expires: new Date(
-      Date.now() + ENV_CONFIG.COOKIE_EXPIRES_IN * 24 * 60 * 60 * 1000,
-    ),
-
-    sameSite: ENV_CONFIG.NODE_ENV === "development" ? "lax" : "none",
-  });
-
   //* convert user document to object & destructure
-  const { password: _, ...rest } = user.toObject() as any;
+  const { password: _, ...rest } = user.toObject();
 
   //* send email
   sendEmail({
     to: user.email,
     subject: "New Login Detected",
-    html: generateLoginDetectedHtml(),
+    html: generateLoginDetectedHtml({
+      full_name: user.full_name,
+      email: user.email,
+      logged_in_at: new Date(Date.now()),
+      user_agent: req.headers["user-agent"],
+    }),
   });
 
   //* set cookie header
@@ -130,6 +129,8 @@ export const login = catchAsync(async (req: Request, res: Response) => {
     sameSite: ENV_CONFIG.NODE_ENV === "development" ? "lax" : "none",
   });
 
+  // res.cookie("abc", "abc123");
+
   //* send success response
   sendResponse(res, {
     message: "login success",
@@ -142,42 +143,42 @@ export const login = catchAsync(async (req: Request, res: Response) => {
 });
 
 //* change password
-export const changePassword = catchAsync(
-  async (req: Request, res: Response) => {
-    const { old_password, new_password, id } = req.body;
+export const changePassword = catchAsync(async (req, res) => {
+  const { old_password, new_password } = req.body;
+  const { _id } = req.user;
 
-    if (!new_password) throw new AppError("new password is required", 400);
-    if (!old_password) throw new AppError("old password is required", 400);
+  if (!new_password) throw new AppError("new password is required", 400);
+  if (!old_password) throw new AppError("old password is required", 400);
 
-    const user = await User.findById(id).select("+password");
+  const user = await User.findById(_id).select("+password");
 
-    if (!user) throw new AppError("user not found", 400);
+  if (!user) throw new AppError("user not found", 400);
 
-    const isPassMatched = await comparePassword(old_password, user.password);
+  const isPassMatched = await comparePassword(old_password, user.password);
 
-    if (!isPassMatched) throw new AppError("password does not matched", 400);
+  if (!isPassMatched) throw new AppError("password does not matched", 400);
 
-    const hash = await hashPassword(new_password);
+  const hash = await hashPassword(new_password);
 
-    user.password = hash;
+  user.password = hash;
 
-    await user.save();
+  await user.save();
 
-    sendResponse(res, {
-      message: "password updated",
-      data: null,
-      statusCode: 200,
-    });
-  },
-);
+  //* send email
 
-//* LOGOUT TODO
+  sendResponse(res, {
+    message: "password updated",
+    data: null,
+    statusCode: 200,
+  });
+});
+
 //* logout
 export const logout = catchAsync(async (req, res) => {
   res.clearCookie("access_token", {
     secure: ENV_CONFIG.NODE_ENV === "development" ? false : true,
     httpOnly: ENV_CONFIG.NODE_ENV === "development" ? false : true,
-    maxAge: 0,
+    maxAge: Date.now(),
     sameSite: ENV_CONFIG.NODE_ENV === "development" ? "lax" : "none",
   });
 
@@ -187,7 +188,6 @@ export const logout = catchAsync(async (req, res) => {
     statusCode: 200,
   });
 });
-
 //* get profile
 export const getProfile = catchAsync(async (req, res) => {
   const { _id } = req.user;
@@ -208,3 +208,34 @@ export const getProfile = catchAsync(async (req, res) => {
 //* change email
 
 //* update profile image
+export const changeProfileImage = catchAsync(async (req, res) => {
+  const { _id } = req.user;
+  const file = req.file;
+  if (!file) throw new AppError("image is required", 400);
+
+  const user = await User.findById(_id);
+
+  if (!user) throw new AppError("profile not found", 400);
+
+  const { public_id, path } = await uploadFileToCloudinary(
+    file,
+    "/profile_images",
+  );
+
+  if (user.profile_image) {
+    await deleteFileFromCloudinary(user.profile_image?.public_id);
+  }
+
+  user.profile_image = {
+    public_id,
+    path,
+  };
+
+  await user.save();
+
+  sendResponse(res, {
+    message: "profile updated",
+    data: user,
+    statusCode: 200,
+  });
+});
