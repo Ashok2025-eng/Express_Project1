@@ -56,17 +56,21 @@ export const register = catchAsync(async (req: Request, res: Response) => {
   //* save user
   await user.save();
 
-  //* send email
-  await sendEmail({
-    to: user.email,
-    subject: "Account Created",
-    html: generateAccountCreatedHtml({
-      full_name: user.full_name,
-      email: user.email,
-      created_at: new Date(Date.now()),
-      user_agent: req.headers["user-agent"],
-    }),
-  });
+  //* send email safely without freezing the response loop
+  try {
+    await sendEmail({
+      to: user.email,
+      subject: "Account Created",
+      html: generateAccountCreatedHtml({
+        full_name: user.full_name,
+        email: user.email,
+        created_at: new Date(Date.now()),
+        user_agent: req.headers["user-agent"],
+      }),
+    });
+  } catch (emailError) {
+    console.error("🚨 Email notification failed to deliver:", emailError);
+  }
 
   //* convert user document to object & destructure
   const { password: _, ...rest } = user.toObject();
