@@ -289,6 +289,7 @@ export const resetPassword = catchAsync(async (req, res) => {
 export const requestChangeEmail = catchAsync(
   async (req: Request, res: Response) => {
     const { new_email } = req.body;
+      console.log("DEBUG - req.user profile value:", req.user); 
     const { _id, email: current_email } = req.user;
 
     if (!new_email) throw new AppError("New email is required", 400);
