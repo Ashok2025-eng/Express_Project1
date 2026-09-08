@@ -37,7 +37,7 @@ router.get("/profile", protect(), getProfile);
 router.post("/forgot-password", forgotPassword);
 
 // Email modification endpoints
-router.post("/request-change-email", requestChangeEmail);
-router.post("/confirm-change-email", confirmChangeEmail);
+router.post("/request-change-email", protect(), requestChangeEmail);
+router.post("/confirm-change-email", protect(), confirmChangeEmail);
 
 export default router;
