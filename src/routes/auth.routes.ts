@@ -44,20 +44,16 @@ router.post(
   resetPassword,
 );
 
-// ==========================================
-// 🛡️ THE SECURITY WALL (Everything below this requires login)
-// ==========================================
+
 router.use(protect()); 
 
-// ==========================================
-// 2. PROTECTED ROUTES (Safe inside the wall)
-// ==========================================
+
 
 //*Logout
-router.post("/logout", logout); // Removed duplicate protect() execution
+router.post("/logout", logout); 
 
 //*get profile
-router.get("/profile", getProfile); // Removed duplicate protect() execution
+router.get("/profile", getProfile); 
 
 //* change password
 router.put(
