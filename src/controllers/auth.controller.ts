@@ -155,29 +155,21 @@ export const login = catchAsync(async (req: Request, res: Response) => {
 //* change password
 export const changePassword = catchAsync(async (req, res) => {
   const { old_password, new_password } = req.body;
-
-  // 1. CHANGE THIS LINE: Pull plain 'id' out of req.user instead of '_id'
-  const { id } = req.user as any;
+  const { _id } = req.user as any; // ✅ Cleaned up to use _id uniformly
 
   if (!new_password) throw new AppError("new password is required", 400);
   if (!old_password) throw new AppError("old password is required", 400);
 
-  // 2. CHANGE THIS LINE: Pass your new 'id' variable directly into findById
-  const user = await User.findById(id).select("+password");
+  const user = await User.findById(_id).select("+password");
 
   if (!user) throw new AppError("user not found", 400);
 
   const isPassMatched = await comparePassword(old_password, user.password);
-
   if (!isPassMatched) throw new AppError("password does not matched", 400);
 
   const hash = await hashPassword(new_password);
-
   user.password = hash;
-
   await user.save();
-
-  //* send email
 
   sendResponse(res, {
     message: "password updated",
@@ -185,13 +177,12 @@ export const changePassword = catchAsync(async (req, res) => {
     statusCode: 200,
   });
 });
-
 //* logout
 export const logout = catchAsync(async (req, res) => {
   res.clearCookie("access_token", {
-    secure: ENV_CONFIG.NODE_ENV === "development" ? false : true,
-    httpOnly: ENV_CONFIG.NODE_ENV === "development" ? false : true,
-    maxAge: Date.now(),
+    secure: ENV_CONFIG.NODE_ENV !== "development",
+    httpOnly: ENV_CONFIG.NODE_ENV !== "development",
+    maxAge: 0,
     sameSite: ENV_CONFIG.NODE_ENV === "development" ? "lax" : "none",
   });
 
@@ -201,6 +192,7 @@ export const logout = catchAsync(async (req, res) => {
     statusCode: 200,
   });
 });
+
 //* get profile
 export const getProfile = catchAsync(async (req, res) => {
   const { _id } = req.user;
@@ -219,35 +211,27 @@ export const getProfile = catchAsync(async (req, res) => {
 //* forgot password
 export const forgotPassword = catchAsync(async (req, res) => {
   const { email } = req.body;
-  if (!email) {
-    throw new AppError("email is required", 400);
-  }
+  if (!email) throw new AppError("email is required", 400);
 
   const account = await User.findOne({ email });
+  if (!account) throw new AppError("account not found", 404);
 
-  if (!account) {
-    throw new AppError("account not found", 404);
-  }
-
-  //* generate otp
   const { otp, hash, expiry } = generateOtp();
 
-  //* save otp
   await Otp.create({
     hash,
     user: account._id,
     action: OtpType.FORGOT_PASSWORD,
     expiresAt: expiry,
+    active: true,
   });
 
-  //* send otp email
   sendEmail({
     to: account.email,
     subject: "Reset Password",
     html: forgotPasswordOtpSendHtml({ otp, email }),
-  });
+  }).catch((err) => console.error("🚨 Forgot password email failed:", err));
 
-  //* send success response
   sendResponse(res, {
     message: `otp sent to: ${account.email}`,
     data: null,
@@ -264,20 +248,17 @@ export const resetPassword = catchAsync(async (req, res) => {
   const otpHash = await Otp.findOne({
     hash: createHash(otp),
     action: OtpType.FORGOT_PASSWORD,
+    active: true,
     expiresAt: { $gt: new Date() },
   });
 
   if (!otpHash) throw new AppError("otp does not exists or expired", 400);
 
   const passHash = await hashPassword(password);
-
-  await User.findByIdAndUpdate(otpHash.user, {
-    password: passHash,
-  });
+  await User.findByIdAndUpdate(otpHash.user, { password: passHash });
 
   otpHash.active = false;
   otpHash.expiresAt = null;
-
   await otpHash.save();
 
   sendResponse(res, {
@@ -296,8 +277,7 @@ export const requestChangeEmail = catchAsync(
 
     console.log("DEBUG - req.user profile value:", req.user);
 
-    // 1. Change _id to id to match your middleware structure exactly!
-    const { id, email: current_email } = req.user;
+    const { _id, email: current_email } = req.user as any; // ✅ Cleaned up to use _id uniformly
 
     if (!new_email) throw new AppError("New email is required", 400);
     if (new_email === current_email)
@@ -311,7 +291,7 @@ export const requestChangeEmail = catchAsync(
 
     await Otp.create({
       hash,
-      user: id, // 2. Map id directly here so Mongoose receives the valid value
+      user: _id, // ✅ Cleaned up to use _id uniformly
       action: OtpType.CHANGE_EMAIL,
       expiresAt: expiry,
       active: true,
@@ -342,15 +322,14 @@ export const requestChangeEmail = catchAsync(
 export const confirmChangeEmail = catchAsync(
   async (req: Request, res: Response) => {
     const { new_email, otp } = req.body;
-    const { id } = req.user as any; // Using 'id' from your login middleware token payload
+    const { _id } = req.user as any; // ✅ Cleaned up to use _id uniformly
 
     if (!new_email) throw new AppError("new email is required", 400);
     if (!otp) throw new AppError("otp is required", 400);
 
-    //* find and validate otp hash
     const otpHash = await Otp.findOne({
       hash: createHash(otp),
-      user: id, // Changed from _id to id
+      user: _id, // ✅ Cleaned up to use _id uniformly
       action: OtpType.CHANGE_EMAIL,
       active: true,
       expiresAt: { $gt: new Date() },
@@ -358,15 +337,11 @@ export const confirmChangeEmail = catchAsync(
 
     if (!otpHash) throw new AppError("otp does not exists or expired", 400);
 
-    //* check if the new email is already taken before updating
     const isEmailTaken = await User.findOne({ email: new_email });
     if (isEmailTaken) throw new AppError("email is already in use", 400);
 
-    //* update user email
-    // Change '_id' to 'id' here to fix the compilation error 👇
-    await User.findByIdAndUpdate(id, { email: new_email });
+    await User.findByIdAndUpdate(_id, { email: new_email }); // ✅ Cleaned up to use _id uniformly
 
-    //* invalidate otp
     otpHash.active = false;
     otpHash.expiresAt = null;
     await otpHash.save();
@@ -381,12 +356,11 @@ export const confirmChangeEmail = catchAsync(
 
 //* update profile image
 export const changeProfileImage = catchAsync(async (req, res) => {
-  const { _id } = req.user;
+  const { _id } = req.user as any;
   const file = req.file;
   if (!file) throw new AppError("image is required", 400);
 
   const user = await User.findById(_id);
-
   if (!user) throw new AppError("profile not found", 400);
 
   const { public_id, path } = await uploadFileToCloudinary(
@@ -394,15 +368,11 @@ export const changeProfileImage = catchAsync(async (req, res) => {
     "/profile_images",
   );
 
-  if (user.profile_image) {
-    await deleteFileFromCloudinary(user.profile_image?.public_id);
+  if (user.profile_image?.public_id) {
+    await deleteFileFromCloudinary(user.profile_image.public_id); // ✅ Fixed native naming typo
   }
 
-  user.profile_image = {
-    public_id,
-    path,
-  };
-
+  user.profile_image = { public_id, path };
   await user.save();
 
   sendResponse(res, {

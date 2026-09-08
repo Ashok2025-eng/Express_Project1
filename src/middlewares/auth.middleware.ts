@@ -26,9 +26,17 @@ export const protect = (allowedRoles: Role[] = []) => {
       throw new AppError("Access denied. Please log in first.", 401);
     }
 
-    try {
-      const decoded = verifyToken(token);
-      req.user = decoded;
+       try {
+      const decoded = verifyToken(token) as any;
+
+      // 🛡️ THE COMPLETE UNIFICATION FIX:
+      // This force-attaches both variations so your original code works everywhere!
+      req.user = {
+        _id: decoded._id || decoded.id, // ✅ Force-sets _id so your original code works perfectly!
+        id: decoded._id || decoded.id,  // Keeps plain id active just in case
+        email: decoded.email,
+        role: decoded.role,
+      };
 
       // 3. ENFORCE ROLE CHECKS: Validate against the enum rules array
       if (allowedRoles.length > 0 && !allowedRoles.includes(decoded.role)) {
@@ -40,6 +48,7 @@ export const protect = (allowedRoles: Role[] = []) => {
 
       next();
     } catch (error) {
+
       next(
         error instanceof AppError
           ? error
