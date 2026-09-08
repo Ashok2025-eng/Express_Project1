@@ -155,12 +155,15 @@ export const login = catchAsync(async (req: Request, res: Response) => {
 //* change password
 export const changePassword = catchAsync(async (req, res) => {
   const { old_password, new_password } = req.body;
-  const { _id } = req.user;
+
+  // 1. CHANGE THIS LINE: Pull plain 'id' out of req.user instead of '_id'
+  const { id } = req.user as any;
 
   if (!new_password) throw new AppError("new password is required", 400);
   if (!old_password) throw new AppError("old password is required", 400);
 
-  const user = await User.findById(_id).select("+password");
+  // 2. CHANGE THIS LINE: Pass your new 'id' variable directly into findById
+  const user = await User.findById(id).select("+password");
 
   if (!user) throw new AppError("user not found", 400);
 
@@ -286,7 +289,7 @@ export const resetPassword = catchAsync(async (req, res) => {
 
 //* change email
 //* REQUEST CHANGE EMAIL
-//* REQUEST CHANGE EMAIL
+
 export const requestChangeEmail = catchAsync(
   async (req: Request, res: Response) => {
     const { new_email } = req.body;
@@ -335,45 +338,46 @@ export const requestChangeEmail = catchAsync(
 );
 
 //* confirm change email
-//* confirm change email
-//* confirm change email
-export const confirmChangeEmail = catchAsync(async (req: Request, res: Response) => {
-  const { new_email, otp } = req.body;
-  const { id } = req.user as any; // Using 'id' from your login middleware token payload
 
-  if (!new_email) throw new AppError("new email is required", 400);
-  if (!otp) throw new AppError("otp is required", 400);
+export const confirmChangeEmail = catchAsync(
+  async (req: Request, res: Response) => {
+    const { new_email, otp } = req.body;
+    const { id } = req.user as any; // Using 'id' from your login middleware token payload
 
-  //* find and validate otp hash
-  const otpHash = await Otp.findOne({
-    hash: createHash(otp),
-    user: id, // Changed from _id to id
-    action: OtpType.CHANGE_EMAIL,
-    active: true,
-    expiresAt: { $gt: new Date() },
-  });
+    if (!new_email) throw new AppError("new email is required", 400);
+    if (!otp) throw new AppError("otp is required", 400);
 
-  if (!otpHash) throw new AppError("otp does not exists or expired", 400);
+    //* find and validate otp hash
+    const otpHash = await Otp.findOne({
+      hash: createHash(otp),
+      user: id, // Changed from _id to id
+      action: OtpType.CHANGE_EMAIL,
+      active: true,
+      expiresAt: { $gt: new Date() },
+    });
 
-  //* check if the new email is already taken before updating
-  const isEmailTaken = await User.findOne({ email: new_email });
-  if (isEmailTaken) throw new AppError("email is already in use", 400);
+    if (!otpHash) throw new AppError("otp does not exists or expired", 400);
 
-  //* update user email
-  // Change '_id' to 'id' here to fix the compilation error 👇
-  await User.findByIdAndUpdate(id, { email: new_email });
+    //* check if the new email is already taken before updating
+    const isEmailTaken = await User.findOne({ email: new_email });
+    if (isEmailTaken) throw new AppError("email is already in use", 400);
 
-  //* invalidate otp
-  otpHash.active = false;
-  otpHash.expiresAt = null;
-  await otpHash.save();
+    //* update user email
+    // Change '_id' to 'id' here to fix the compilation error 👇
+    await User.findByIdAndUpdate(id, { email: new_email });
 
-  sendResponse(res, {
-    message: "email updated",
-    data: null,
-    statusCode: 200,
-  });
-});
+    //* invalidate otp
+    otpHash.active = false;
+    otpHash.expiresAt = null;
+    await otpHash.save();
+
+    sendResponse(res, {
+      message: "email updated",
+      data: null,
+      statusCode: 200,
+    });
+  },
+);
 
 //* update profile image
 export const changeProfileImage = catchAsync(async (req, res) => {
