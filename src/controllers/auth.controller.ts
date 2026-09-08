@@ -286,11 +286,15 @@ export const resetPassword = catchAsync(async (req, res) => {
 
 //* change email
 //* REQUEST CHANGE EMAIL
+//* REQUEST CHANGE EMAIL
 export const requestChangeEmail = catchAsync(
   async (req: Request, res: Response) => {
     const { new_email } = req.body;
-      console.log("DEBUG - req.user profile value:", req.user); 
-    const { _id, email: current_email } = req.user;
+
+    console.log("DEBUG - req.user profile value:", req.user);
+
+    // 1. Change _id to id to match your middleware structure exactly!
+    const { id, email: current_email } = req.user;
 
     if (!new_email) throw new AppError("New email is required", 400);
     if (new_email === current_email)
@@ -304,13 +308,12 @@ export const requestChangeEmail = catchAsync(
 
     await Otp.create({
       hash,
-      user: _id,
+      user: id, // 2. Map id directly here so Mongoose receives the valid value
       action: OtpType.CHANGE_EMAIL,
       expiresAt: expiry,
       active: true,
     });
 
-    // Uses your layout perfectly
     sendEmail({
       to: new_email,
       subject: "Verify Your New Email Address",
@@ -332,44 +335,45 @@ export const requestChangeEmail = catchAsync(
 );
 
 //* confirm change email
-export const confirmChangeEmail = catchAsync(
-  async (req: Request, res: Response) => {
-    const { new_email, otp } = req.body;
-    const { _id } = req.user;
+//* confirm change email
+//* confirm change email
+export const confirmChangeEmail = catchAsync(async (req: Request, res: Response) => {
+  const { new_email, otp } = req.body;
+  const { id } = req.user as any; // Using 'id' from your login middleware token payload
 
-    if (!new_email) throw new AppError("new email is required", 400);
-    if (!otp) throw new AppError("otp is required", 400);
+  if (!new_email) throw new AppError("new email is required", 400);
+  if (!otp) throw new AppError("otp is required", 400);
 
-    //* find and validate otp hash
-    const otpHash = await Otp.findOne({
-      hash: createHash(otp),
-      user: _id,
-      action: OtpType.CHANGE_EMAIL,
-      active: true,
-      expiresAt: { $gt: new Date() },
-    });
+  //* find and validate otp hash
+  const otpHash = await Otp.findOne({
+    hash: createHash(otp),
+    user: id, // Changed from _id to id
+    action: OtpType.CHANGE_EMAIL,
+    active: true,
+    expiresAt: { $gt: new Date() },
+  });
 
-    if (!otpHash) throw new AppError("otp does not exists or expired", 400);
+  if (!otpHash) throw new AppError("otp does not exists or expired", 400);
 
-    //* check if the new email is already taken before updating
-    const isEmailTaken = await User.findOne({ email: new_email });
-    if (isEmailTaken) throw new AppError("email is already in use", 400);
+  //* check if the new email is already taken before updating
+  const isEmailTaken = await User.findOne({ email: new_email });
+  if (isEmailTaken) throw new AppError("email is already in use", 400);
 
-    //* update user email
-    await User.findByIdAndUpdate(_id, { email: new_email });
+  //* update user email
+  // Change '_id' to 'id' here to fix the compilation error 👇
+  await User.findByIdAndUpdate(id, { email: new_email });
 
-    //* invalidate otp
-    otpHash.active = false;
-    otpHash.expiresAt = null;
-    await otpHash.save();
+  //* invalidate otp
+  otpHash.active = false;
+  otpHash.expiresAt = null;
+  await otpHash.save();
 
-    sendResponse(res, {
-      message: "email updated",
-      data: null,
-      statusCode: 200,
-    });
-  },
-);
+  sendResponse(res, {
+    message: "email updated",
+    data: null,
+    statusCode: 200,
+  });
+});
 
 //* update profile image
 export const changeProfileImage = catchAsync(async (req, res) => {
