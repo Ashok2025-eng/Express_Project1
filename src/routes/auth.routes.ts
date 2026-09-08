@@ -1,10 +1,13 @@
 import express from "express";
 import {
   changePassword,
+  confirmChangeEmail,
+  forgotPassword,
   getProfile,
   login,
   logout,
   register,
+  requestChangeEmail,
 } from "../controllers/auth.controller";
 import { protect } from "../middlewares/auth.middleware";
 import multerFileUploader from "../middlewares/multer.middleware";
@@ -29,4 +32,12 @@ router.post("/logout", protect(), logout);
 
 //*get profile
 router.get("/profile", protect(), getProfile);
+
+//* forgot-password
+router.post("/forgot-password", forgotPassword);
+
+// Email modification endpoints
+router.post("/request-change-email", requestChangeEmail);
+router.post("/confirm-change-email", confirmChangeEmail);
+
 export default router;

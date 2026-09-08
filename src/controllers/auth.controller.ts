@@ -8,11 +8,17 @@ import {
   deleteFileFromCloudinary,
   uploadFileToCloudinary,
 } from "../utils/cloudinary.utils";
+
+import Otp from "../models/otp.model";
+import { OtpType } from "../types/enum.types";
 import {
+  changeEmailOtpSendHtml,
+  forgotPasswordOtpSendHtml,
   generateAccountCreatedHtml,
   generateLoginDetectedHtml,
 } from "../utils/emailTemplate.utils";
 import { generateJwtToken } from "../utils/jwt.utils";
+import { createHash, generateOtp } from "../utils/otp.utils";
 import { sendEmail } from "../utils/sendEmail.utils";
 import sendResponse from "../utils/sendResponse.utils";
 
@@ -208,8 +214,161 @@ export const getProfile = catchAsync(async (req, res) => {
 });
 
 //* forgot password
+export const forgotPassword = catchAsync(async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    throw new AppError("email is required", 400);
+  }
+
+  const account = await User.findOne({ email });
+
+  if (!account) {
+    throw new AppError("account not found", 404);
+  }
+
+  //* generate otp
+  const { otp, hash, expiry } = generateOtp();
+
+  //* save otp
+  await Otp.create({
+    hash,
+    user: account._id,
+    action: OtpType.FORGOT_PASSWORD,
+    expiresAt: expiry,
+  });
+
+  //* send otp email
+  sendEmail({
+    to: account.email,
+    subject: "Reset Password",
+    html: forgotPasswordOtpSendHtml({ otp, email }),
+  });
+
+  //* send success response
+  sendResponse(res, {
+    message: `otp sent to: ${account.email}`,
+    data: null,
+    statusCode: 201,
+  });
+});
+
+//* reset password
+export const resetPassword = catchAsync(async (req, res) => {
+  const { password, otp } = req.body;
+  if (!password) throw new AppError("password is required", 400);
+  if (!otp) throw new AppError("otp is required", 400);
+
+  const otpHash = await Otp.findOne({
+    hash: createHash(otp),
+    action: OtpType.FORGOT_PASSWORD,
+    expiresAt: { $gt: new Date() },
+  });
+
+  if (!otpHash) throw new AppError("otp does not exists or expired", 400);
+
+  const passHash = await hashPassword(password);
+
+  await User.findByIdAndUpdate(otpHash.user, {
+    password: passHash,
+  });
+
+  otpHash.active = false;
+  otpHash.expiresAt = null;
+
+  await otpHash.save();
+
+  sendResponse(res, {
+    message: "password updated",
+    data: null,
+    statusCode: 200,
+  });
+});
 
 //* change email
+//* REQUEST CHANGE EMAIL
+export const requestChangeEmail = catchAsync(
+  async (req: Request, res: Response) => {
+    const { new_email } = req.body;
+    const { _id, email: current_email } = req.user;
+
+    if (!new_email) throw new AppError("New email is required", 400);
+    if (new_email === current_email)
+      throw new AppError("New email must be different from current email", 400);
+
+    const isEmailTaken = await User.findOne({ email: new_email });
+    if (isEmailTaken)
+      throw new AppError("Email is already in use by another account", 400);
+
+    const { otp, hash, expiry } = generateOtp();
+
+    await Otp.create({
+      hash,
+      user: _id,
+      action: OtpType.CHANGE_EMAIL,
+      expiresAt: expiry,
+      active: true,
+    });
+
+    // Uses your layout perfectly
+    sendEmail({
+      to: new_email,
+      subject: "Verify Your New Email Address",
+      html: changeEmailOtpSendHtml({
+        otp,
+        email: new_email,
+        requested_at: new Date(),
+      }),
+    }).catch((err) =>
+      console.error("🚨 Change email OTP delivery failed:", err),
+    );
+
+    sendResponse(res, {
+      message: `Verification OTP sent to your new email: ${new_email}`,
+      data: null,
+      statusCode: 200,
+    });
+  },
+);
+
+//* confirm change email
+export const confirmChangeEmail = catchAsync(
+  async (req: Request, res: Response) => {
+    const { new_email, otp } = req.body;
+    const { _id } = req.user;
+
+    if (!new_email) throw new AppError("new email is required", 400);
+    if (!otp) throw new AppError("otp is required", 400);
+
+    //* find and validate otp hash
+    const otpHash = await Otp.findOne({
+      hash: createHash(otp),
+      user: _id,
+      action: OtpType.CHANGE_EMAIL,
+      active: true,
+      expiresAt: { $gt: new Date() },
+    });
+
+    if (!otpHash) throw new AppError("otp does not exists or expired", 400);
+
+    //* check if the new email is already taken before updating
+    const isEmailTaken = await User.findOne({ email: new_email });
+    if (isEmailTaken) throw new AppError("email is already in use", 400);
+
+    //* update user email
+    await User.findByIdAndUpdate(_id, { email: new_email });
+
+    //* invalidate otp
+    otpHash.active = false;
+    otpHash.expiresAt = null;
+    await otpHash.save();
+
+    sendResponse(res, {
+      message: "email updated",
+      data: null,
+      statusCode: 200,
+    });
+  },
+);
 
 //* update profile image
 export const changeProfileImage = catchAsync(async (req, res) => {
